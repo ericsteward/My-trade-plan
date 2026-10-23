@@ -1,0 +1,1 @@
+FIXED VERSION: Open index.html in Chrome or Samsung Internet. JavaScript is now embedded to avoid local file loading restrictions. If tapping tabs still does nothing, your phone file previewer is blocking JavaScript; open the file explicitly in a full browser or host it on HTTPS. This app is manual-data only, not connected to brokers. Export backups regularly.
