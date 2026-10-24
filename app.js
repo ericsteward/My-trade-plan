@@ -47,3 +47,61 @@ async function fetchFreeRates(){
  finally{btn.disabled=false}
 }
 installReferencePanel();
+
+/* V5 historical daily candle importer. Calculations use supplied D1 data, not ECB reference rates. */
+(function(){
+ const root=document.getElementById('freeRatePanel');if(!root)return;
+ const panel=document.createElement('div');panel.className='card';panel.id='historyPanel';panel.style.cssText='margin:14px 0;padding:14px;border:1px solid #51788c;background:#11283d';
+ panel.innerHTML='<h3>Automatic institutional levels from D1 history</h3><p>Import FOREX.com MT4 D1 CSV for the selected pair. The app calculates Y/Q/M/W/D opens, 18-day EMA, and Monday high/mid/low. Confirm server time and DST. This is not a live feed.</p><label>FOREX.com D1 CSV<input type="file" id="historyFile" accept=".csv,.txt,text/csv"></label><button type="button" id="calculateHistory">Calculate levels</button><p id="historyStatus" aria-live="polite">No history imported.</p><button type="button" id="applyHistory" style="display:none;background:#456785">Copy calculated levels into manual fields</button>';
+ root.after(panel);
+ let calculated=null;
+ const el=id=>document.getElementById(id);
+ function parseDate(s){const m=String(s).trim().match(/^(\\d{4})[.\\/-](\\d{1,2})[.\\/-](\\d{1,2})$/);return m?new Date(Date.UTC(+m[1],+m[2]-1,+m[3])):null}
+ function parseRows(text){
+  const rows=[];
+  for(const line of text.split(/\\r?\\n/)){
+   const cols=line.trim().split(/[;,\\t]/).map(x=>x.trim().replace(/^"|"$/g,''));
+   if(cols.length<5)continue;
+   let date=parseDate(cols[0]),offset=1;
+   if(!date)continue;
+   // MT4 export: Date, Time, Open, High, Low, Close, Volume; or Date, Open, High, Low, Close.
+   if(/^\\d{1,2}:\\d{2}/.test(cols[1]))offset=2;
+   const o=Number(cols[offset]),h=Number(cols[offset+1]),l=Number(cols[offset+2]),c=Number(cols[offset+3]);
+   if([o,h,l,c].every(Number.isFinite)&&o>0&&h>=Math.max(o,c)&&l<=Math.min(o,c)&&h>=l)rows.push({date,o,h,l,c});
+  }
+  rows.sort((a,b)=>a.date-b.date);
+  return rows.filter((r,i)=>!i||r.date.getTime()!==rows[i-1].date.getTime());
+ }
+ const fmt=d=>d.toISOString().slice(0,10);
+ function calculate(rows){
+  if(rows.length<18)throw Error('At least 18 valid daily candles are required');
+  const last=rows[rows.length-1],year=last.date.getUTCFullYear(),month=last.date.getUTCMonth(),day=last.date.getUTCDay(),quarter=Math.floor(month/3);
+  const mondayOffset=(day+6)%7,weekStart=new Date(last.date.getTime()-mondayOffset*86400000);
+  const first=predicate=>{const x=rows.find(predicate);return x?x.o:null};
+  const inYear=r=>r.date.getUTCFullYear()===year;
+  const y=first(inYear),q=first(r=>inYear(r)&&Math.floor(r.date.getUTCMonth()/3)===quarter);
+  const m=first(r=>inYear(r)&&r.date.getUTCMonth()===month);
+  const w=first(r=>r.date>=weekStart),d=last.o;
+  let ema=rows[0].c;const alpha=2/19;for(let i=1;i<rows.length;i++)ema=alpha*rows[i].c+(1-alpha)*ema;
+  const monday=rows.find(r=>r.date.getTime()===weekStart.getTime());
+  return {yearly:y,quarterly:q,monthly:m,weekly:w,daily:d,ema,high:monday?.h??null,low:monday?.l??null,asOf:fmt(last.date),candles:rows.length,mondayDate:fmt(weekStart),completeMonday:day!==1};
+ }
+ el('calculateHistory').onclick=async()=>{
+  const file=el('historyFile').files?.[0];if(!file){el('historyStatus').textContent='Select a D1 CSV file first.';return}
+  try{
+   const rows=parseRows(await file.text());
+   if(!rows.length)throw Error('No valid D1 candles found. Use MT4 CSV: Date,Time,Open,High,Low,Close.');
+   calculated=calculate(rows);
+   const c=calculated;
+   el('historyStatus').textContent='Calculated from '+c.candles+' daily candles; last candle '+c.asOf+'. Y '+c.yearly+' | Q '+c.quarterly+' | M '+c.monthly+' | W '+c.weekly+' | D '+c.daily+' | EMA18 '+c.ema.toFixed(5)+' | Monday '+(c.high===null?'unavailable':c.high+' / '+((c.high+c.low)/2).toFixed(5)+' / '+c.low)+'. Check CSV belongs to '+el('pair').value+', FOREX.com server time/DST, and whether Monday candle is complete. No live verification.';
+   el('applyHistory').style.display='inline-block';
+  }catch(err){calculated=null;el('applyHistory').style.display='none';el('historyStatus').textContent='Could not calculate: '+err.message}
+ };
+ el('applyHistory').onclick=()=>{
+  if(!calculated)return;
+  for(const key of ['yearly','quarterly','monthly','weekly','daily','ema','high','low']){
+   const value=calculated[key];if(value!==null)el('v_'+key).value=value.toFixed(5);
+  }
+  el('historyStatus').textContent+=' Values copied. Review them, then tap Save and assess. Current price is unchanged.';
+ };
+})();
