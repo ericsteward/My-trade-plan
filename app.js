@@ -148,3 +148,26 @@ installReferencePanel();
 function saveGold(){const ids=['goldSide','goldEntry','goldStop','goldTarget','goldLot','goldHigh','goldLow','goldConfirm','goldSwap','goldDays'];const x={};ids.forEach(id=>x[id]=document.getElementById(id).value);localStorage.setItem('gregGoldPlan',JSON.stringify(x));document.getElementById('goldReport').textContent='Gold plan saved on this phone.'}
 function calcGold(){const a=document.getElementById('goldSwap').value,b=document.getElementById('goldDays').value;document.getElementById('goldCost').textContent=a!==''&&Number(b)>0?'Estimated holding charge: $'+(Number(a)*Number(b)).toFixed(2):'Enter daily charge and days.'}
 try{const g=JSON.parse(localStorage.getItem('gregGoldPlan')||'{}');Object.keys(g).forEach(k=>{const e=document.getElementById(k);if(e)e.value=g[k]})}catch(e){}
+
+function showSimpleAlignment(){
+ const box=document.getElementById('alignmentSummary');if(!box)return;
+ const pair=$('pair').value,p=db.pairs[pair]||{},price=Number(p.price);
+ const labels=[['Yearly','yearly'],['Quarterly','quarterly'],['Monthly','monthly'],['Weekly','weekly'],['Daily','daily'],['EMA','ema']];
+ let above=0,below=0,entered=0;
+ const lines=labels.map(item=>{
+  const raw=p[item[1]],v=Number(raw);
+  if(raw==null||raw===''||p.price==null||p.price==='')return item[0]+': Missing';
+  entered++;
+  if(price>v){above++;return item[0]+': Above'}
+  if(price<v){below++;return item[0]+': Below'}
+  return item[0]+': Equal';
+ });
+ const bias=pairs[pair];
+ const aligned=entered===6&&((bias==='BUY'&&above===6)||(bias==='SELL'&&below===6));
+ const monday=p.high!==''&&p.low!==''&&p.high!=null&&p.low!=null&&Number(p.high)>Number(p.low);
+ const ready=aligned&&monday&&p.confirm==='yes'&&['inside','sweep','breakout'].includes(p.pattern);
+ box.textContent=pair+' — '+bias+' WATCH\n'+lines.join('\n')+'\nDecision: '+(ready?'REVIEW POTENTIAL SETUP':'WAIT — confirmation needed')+'\nReference-rate estimates are not verified FOREX.com opens or D1 EMA.';
+}
+const priorLoadPair=loadPair;loadPair=function(){priorLoadPair();showSimpleAlignment()};
+const priorSavePair=savePair;savePair=function(){priorSavePair();showSimpleAlignment()};
+showSimpleAlignment();
