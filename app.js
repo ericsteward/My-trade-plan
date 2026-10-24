@@ -105,3 +105,42 @@ installReferencePanel();
   el('historyStatus').textContent+=' Values copied. Review them, then tap Save and assess. Current price is unchanged.';
  };
 })();
+
+/* V6 free historical reference-rate series. Not OHLC candles. */
+(function(){
+ const box=document.getElementById('historyPanel');if(!box)return;
+ const p=document.createElement('div');p.className='card';p.style.cssText='background:#18334a;border:1px solid #55768b;padding:12px;margin:12px 0';
+ p.innerHTML='<h3>Free historical reference estimates</h3><p>Uses Frankfurter/ECB daily reference fixings. Calculates approximate Y/Q/M/W/D reference levels and an 18-observation EMA proxy. These are NOT broker opens or a D1 candle EMA. Monday high/low cannot be calculated from daily fixings.</p><button type="button" id="fetchHistoricalEstimates">Get free historical estimates</button><p id="estimateStatus" aria-live="polite">Not loaded.</p><button type="button" id="copyHistoricalEstimates" style="display:none;background:#456785">Copy estimates to manual fields</button>';
+ box.append(p);
+ let estimates=null,estimatePair=null;
+ document.getElementById('fetchHistoricalEstimates').onclick=async()=>{
+  const status=document.getElementById('estimateStatus'),btn=document.getElementById('fetchHistoricalEstimates');
+  btn.disabled=true;status.textContent='Loading historical reference fixings…';
+  try{
+   const pair=document.getElementById('pair').value,base=pair.slice(0,3),quote=pair.slice(3);
+   const now=new Date(),start=new Date(Date.UTC(now.getUTCFullYear()-1,0,1)).toISOString().slice(0,10);
+   const url='https://api.frankfurter.dev/v1/'+start+'..?base=EUR&symbols='+encodeURIComponent([base,quote].filter(x=>x!=='EUR').join(','));
+   const res=await fetch(url,{cache:'no-store'});if(!res.ok)throw Error('Provider HTTP '+res.status);
+   const json=await res.json(),rates=json.rates;if(!rates)throw Error('Missing historical observations');
+   const data=Object.keys(rates).sort().map(date=>{
+    const row=rates[date],b=base==='EUR'?1:row[base],q=quote==='EUR'?1:row[quote];
+    return {date,rate:q/b};
+   }).filter(x=>Number.isFinite(x.rate)&&x.rate>0);
+   if(data.length<18)throw Error('Insufficient history for EMA');
+   const last=data[data.length-1],y=last.date.slice(0,4),m=last.date.slice(0,7),month=Number(last.date.slice(5,7)),qStart=String(1+3*Math.floor((month-1)/3)).padStart(2,'0'),quarter=y+'-'+qStart;
+   const dt=new Date(last.date+'T00:00:00Z'),weekday=(dt.getUTCDay()+6)%7,mon=new Date(dt.getTime()-weekday*86400000).toISOString().slice(0,10);
+   const first=prefix=>data.find(x=>x.date.startsWith(prefix))?.rate;
+   let ema=data[0].rate;for(let i=1;i<data.length;i++)ema=ema+(2/19)*(data[i].rate-ema);
+   estimates={yearly:first(y),quarterly:data.find(x=>x.date>=quarter)?.rate,monthly:first(m),weekly:data.find(x=>x.date>=mon)?.rate,daily:last.rate,ema};
+   estimatePair=pair;
+   status.textContent=pair+' | '+data.length+' ECB-based daily reference observations | latest '+last.date+' | Y '+estimates.yearly.toFixed(5)+' | Q '+estimates.quarterly.toFixed(5)+' | M '+estimates.monthly.toFixed(5)+' | W '+(estimates.weekly?.toFixed(5)||'N/A')+' | D '+estimates.daily.toFixed(5)+' | EMA proxy '+estimates.ema.toFixed(5)+'. Monday high/low UNAVAILABLE. Do not treat these as FOREX.com opens or candle EMA.';
+   document.getElementById('copyHistoricalEstimates').style.display='inline-block';
+  }catch(err){estimates=null;status.textContent='Historical reference retrieval unavailable: '+err.message+'. Manual fields remain unchanged.';document.getElementById('copyHistoricalEstimates').style.display='none'}
+  finally{btn.disabled=false}
+ };
+ document.getElementById('copyHistoricalEstimates').onclick=()=>{
+  if(!estimates||estimatePair!==document.getElementById('pair').value){document.getElementById('estimateStatus').textContent='Select the original pair and retrieve its estimates again.';return}
+  for(const key of Object.keys(estimates))if(Number.isFinite(estimates[key]))document.getElementById('v_'+key).value=estimates[key].toFixed(5);
+  document.getElementById('estimateStatus').textContent+=' Estimates copied for comparison only. They are NOT broker opens. Do not confirm a trade from these proxies. Monday high/low remain unchanged.';
+ };
+})();
