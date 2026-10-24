@@ -144,3 +144,7 @@ installReferencePanel();
   document.getElementById('estimateStatus').textContent+=' Estimates copied for comparison only. They are NOT broker opens. Do not confirm a trade from these proxies. Monday high/low remain unchanged.';
  };
 })();
+
+function saveGold(){const ids=['goldSide','goldEntry','goldStop','goldTarget','goldLot','goldHigh','goldLow','goldConfirm','goldSwap','goldDays'];const x={};ids.forEach(id=>x[id]=document.getElementById(id).value);localStorage.setItem('gregGoldPlan',JSON.stringify(x));document.getElementById('goldReport').textContent='Gold plan saved on this phone.'}
+function calcGold(){const a=document.getElementById('goldSwap').value,b=document.getElementById('goldDays').value;document.getElementById('goldCost').textContent=a!==''&&Number(b)>0?'Estimated holding charge: $'+(Number(a)*Number(b)).toFixed(2):'Enter daily charge and days.'}
+try{const g=JSON.parse(localStorage.getItem('gregGoldPlan')||'{}');Object.keys(g).forEach(k=>{const e=document.getElementById(k);if(e)e.value=g[k]})}catch(e){}
