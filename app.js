@@ -171,3 +171,25 @@ function showSimpleAlignment(){
 const priorLoadPair=loadPair;loadPair=function(){priorLoadPair();showSimpleAlignment()};
 const priorSavePair=savePair;savePair=function(){priorSavePair();showSimpleAlignment()};
 showSimpleAlignment();
+
+function renderPairBoard(){
+ const el=document.getElementById('pairBoard');if(!el)return;
+ const rows=Object.keys(pairs).map(pair=>{
+  const p=db.pairs[pair]||{},bias=pairs[pair],price=Number(p.price);
+  const levels=['yearly','quarterly','monthly','weekly','daily','ema'];
+  const complete=p.price!==''&&p.price!=null&&levels.every(k=>p[k]!==''&&p[k]!=null&&Number.isFinite(Number(p[k])));
+  const up=complete&&levels.every(k=>price>Number(p[k]));
+  const down=complete&&levels.every(k=>price<Number(p[k]));
+  const aligned=(bias==='BUY'&&up)||(bias==='SELL'&&down);
+  const monday=p.high!==''&&p.low!==''&&p.high!=null&&p.low!=null&&Number(p.high)>Number(p.low);
+  const confirmed=p.confirm==='yes'&&['inside','sweep','breakout'].includes(p.pattern);
+  const status=aligned&&monday&&confirmed?'REVIEW':complete?'WAIT':'NO DATA';
+  const alignment=!complete?'—':up?'6 above':down?'6 below':'Mixed';
+  return '<tr><td><button onclick="openBoardPair(\''+pair+'\')">'+pair+'</button></td><td>'+bias+'</td><td>'+alignment+'</td><td>'+status+'</td></tr>';
+ });
+ el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr><th>Pair</th><th>Bias</th><th>Y/Q/M/W/D/EMA</th><th>Status</th></tr></thead><tbody>'+rows.join('')+'</tbody></table><p class="muted">REVIEW means saved inputs pass basic checks, not a verified trade signal. Reference estimates are not FOREX.com candle data.</p>';
+ el.querySelectorAll('td,th').forEach(cell=>{cell.style.padding='9px 4px';cell.style.borderBottom='1px solid #48617a';cell.style.textAlign='left'});
+}
+function openBoardPair(symbol){$('pair').value=symbol;loadPair();document.getElementById('alignmentSummary').scrollIntoView({behavior:'smooth',block:'center'})}
+const oldBoardSave=savePair;savePair=function(){oldBoardSave();renderPairBoard()};
+renderPairBoard();
