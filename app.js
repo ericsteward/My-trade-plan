@@ -56,16 +56,16 @@ installReferencePanel();
  root.after(panel);
  let calculated=null;
  const el=id=>document.getElementById(id);
- function parseDate(s){const m=String(s).trim().match(/^(\\d{4})[.\\/-](\\d{1,2})[.\\/-](\\d{1,2})$/);return m?new Date(Date.UTC(+m[1],+m[2]-1,+m[3])):null}
+ function parseDate(s){const m=String(s).trim().match(/^(\d{4})[.\/-](\d{1,2})[.\/-](\d{1,2})$/);return m?new Date(Date.UTC(+m[1],+m[2]-1,+m[3])):null}
  function parseRows(text){
   const rows=[];
-  for(const line of text.split(/\\r?\\n/)){
-   const cols=line.trim().split(/[;,\\t]/).map(x=>x.trim().replace(/^"|"$/g,''));
+  for(const line of text.split(/\r?\n/)){
+   const cols=line.trim().split(/[;,\t]/).map(x=>x.trim().replace(/^"|"$/g,''));
    if(cols.length<5)continue;
    let date=parseDate(cols[0]),offset=1;
    if(!date)continue;
    // MT4 export: Date, Time, Open, High, Low, Close, Volume; or Date, Open, High, Low, Close.
-   if(/^\\d{1,2}:\\d{2}/.test(cols[1]))offset=2;
+   if(/^\d{1,2}:\d{2}/.test(cols[1]))offset=2;
    const o=Number(cols[offset]),h=Number(cols[offset+1]),l=Number(cols[offset+2]),c=Number(cols[offset+3]);
    if([o,h,l,c].every(Number.isFinite)&&o>0&&h>=Math.max(o,c)&&l<=Math.min(o,c)&&h>=l)rows.push({date,o,h,l,c});
   }
