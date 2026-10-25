@@ -193,3 +193,35 @@ function renderPairBoard(){
 function openBoardPair(symbol){$('pair').value=symbol;loadPair();document.getElementById('alignmentSummary').scrollIntoView({behavior:'smooth',block:'center'})}
 const oldBoardSave=savePair;savePair=function(){oldBoardSave();renderPairBoard()};
 renderPairBoard();
+
+
+/* Version 10: local-only FOREX.com MT4 statement import; no broker credentials. */
+(function(){
+ const card=document.createElement('div');card.className='card';
+ card.innerHTML='<h2>FOREX.com Trade History Import</h2><p>Import an MT4 Detailed Statement CSV or HTML file. Closed BUY/SELL trades only; cancelled orders are excluded. A preview appears before saving. This is separate from D1 price-history import.</p><label>Select statement (.csv, .htm, .html)<input id="statementFile" type="file" accept=".csv,.htm,.html,text/csv,text/html"></label><button id="statementPreviewBtn">Preview trade history</button><div id="statementReport" style="white-space:pre-wrap;margin-top:12px"></div><button id="statementSaveBtn" style="display:none">Save imported trades</button><div id="statementResults"></div>';
+ const journal=document.getElementById('journal');if(!journal)return;journal.insertBefore(card,journal.firstChild);
+ let pending=[],account='unknown';
+ const num=v=>{const n=Number(String(v??'').replace(/[$, ]/g,''));return Number.isFinite(n)?n:0};
+ function csvRows(s){s=s.replace(/^\uFEFF/,'');const out=[];let row=[],field='',quoted=false;for(let i=0;i<s.length;i++){const c=s[i];if(c==='"'){if(quoted&&s[i+1]==='"'){field+='"';i++}else quoted=!quoted}else if(c===','&&!quoted){row.push(field);field=''}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&s[i+1]==='\n')i++;row.push(field);if(row.some(x=>x.trim()))out.push(row);row=[];field=''}else field+=c}row.push(field);if(row.some(x=>x.trim()))out.push(row);return out}
+ function parseStatement(s,isHtml){
+  let data=[];
+  if(isHtml){const doc=new DOMParser().parseFromString(s,'text/html');const header=[...doc.querySelectorAll('tr')].find(tr=>tr.textContent.includes('Ticket')&&tr.textContent.includes('Open Time')&&tr.textContent.includes('Profit'));if(!header)throw Error('No MT4 closed-transactions table found');let tr=header.nextElementSibling;while(tr){const cells=[...tr.querySelectorAll('td')];if(cells.length===14){data.push({Ticket:cells[0].textContent.trim(),'Open Time':cells[1].textContent.trim(),Type:cells[2].textContent.trim(),Size:cells[3].textContent.trim(),Item:cells[4].textContent.trim(),'Open Price':cells[5].textContent.trim(),'S / L':cells[6].textContent.trim(),'T / P':cells[7].textContent.trim(),'Close Time':cells[8].textContent.trim(),'Close / Market Price':cells[9].textContent.trim(),Commission:cells[10].textContent.trim(),Taxes:cells[11].textContent.trim(),Swap:cells[12].textContent.trim(),Profit:cells[13].textContent.trim()})}else if(cells.length>=4&&cells[2]?.textContent.trim()==='balance'){data.push({Ticket:cells[0].textContent.trim(),Type:'balance',Comment:cells[3].textContent.trim(),Profit:cells[cells.length-1].textContent.trim()})}else if(cells.some(c=>/Open Trades:|Working Orders:|Summary:/.test(c.textContent)))break;tr=tr.nextElementSibling}
+  }else{const rows=csvRows(s),headers=rows.shift().map(x=>x.trim());if(!headers.includes('Ticket')||!headers.includes('Type')||!headers.includes('Profit'))throw Error('This is not a supported MT4 detailed statement CSV');data=rows.map(row=>Object.fromEntries(headers.map((h,i)=>[h,row[i]||'']))).filter(r=>r.Section==='Closed Transactions'||!headers.includes('Section'))}
+  const swaps={};const charges={};
+  for(const r of data){if(String(r.Type).toLowerCase()!=='balance')continue;const comment=r.Comment||'';let m=comment.match(/Swap\s*#(\d+)/i);if(m)swaps[m[1]]=(swaps[m[1]]||0)+num(r.Profit);m=comment.match(/(?:>\s*)?(\d+)\s+Spread Cost\s+(-?[\d.]+)/i);if(m){charges[m[1]]=(charges[m[1]]||0)+num(m[2])}}
+  const trades=data.filter(r=>['buy','sell'].includes(String(r.Type).toLowerCase())&&r.Ticket&&r['Close Time']).map(r=>({ticket:String(r.Ticket).trim(),date:r['Close Time'],openTime:r['Open Time'],name:String(r.Item).toUpperCase(),side:String(r.Type).toUpperCase(),size:num(r.Size),entry:r['Open Price'],stop:r['S / L'],target:r['T / P'],closePrice:r['Close / Market Price'],profit:num(r.Profit),commission:num(r.Commission),taxes:num(r.Taxes),swap:num(r.Swap)+(swaps[String(r.Ticket).trim()]||0),spreadInfo:charges[String(r.Ticket).trim()]||0,source:'FOREX.com MT4',notes:'Imported from FOREX.com statement'}));
+  return trades.map(t=>({...t,net:t.profit+t.commission+t.taxes+t.swap}));
+ }
+ function showResults(){
+  const el=document.getElementById('statementResults');const ts=(db.trades||[]).filter(t=>t.source==='FOREX.com MT4');const groups={};for(const t of ts){const g=groups[t.name]||(groups[t.name]={count:0,wins:0,net:0});g.count++;g.wins+=t.net>0?1:0;g.net+=t.net}const rows=Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0]));el.textContent='Imported trades saved: '+ts.length+'\n'+rows.map(([p,g])=>p+': '+g.count+' trades, '+g.wins+' wins, '+(g.count-g.wins)+' non-wins, net $'+g.net.toFixed(2)).join('\n');
+ }
+ document.getElementById('statementPreviewBtn').onclick=async()=>{
+  const el=document.getElementById('statementReport');document.getElementById('statementSaveBtn').style.display='none';pending=[];const file=document.getElementById('statementFile').files[0];if(!file){el.textContent='Choose a file first.';return}
+  try{const content=await file.text();const html=/\.html?$/i.test(file.name)||/^\s*<!doctype html|^\s*<html/i.test(content);pending=parseStatement(content,html);if(!pending.length)throw Error('No closed BUY/SELL trades found');const found=content.match(/Account:\s*(\d+)/i);account=found?found[1]:'24541105';const ids=new Set((db.trades||[]).map(t=>t.importKey).filter(Boolean));const fresh=pending.filter(t=>!ids.has(account+':'+t.ticket));const total=pending.reduce((a,t)=>a+t.net,0);const swap=pending.reduce((a,t)=>a+t.swap,0);el.textContent='Preview: '+pending.length+' closed trades; '+fresh.length+' new; '+(pending.length-fresh.length)+' already imported.\nNet (profit + commission + taxes + swap): $'+total.toFixed(2)+'\nSwap included: $'+swap.toFixed(2)+'\nSpread Cost notes are informational, not subtracted again.\nAccount: '+account+'\nNo data saved yet.';document.getElementById('statementSaveBtn').style.display='inline-block';
+  }catch(e){el.textContent='Import error: '+e.message}
+ };
+ document.getElementById('statementSaveBtn').onclick=()=>{
+  const ids=new Set((db.trades||[]).map(t=>t.importKey).filter(Boolean));let count=0;for(const t of pending){const key=account+':'+t.ticket;if(ids.has(key))continue;db.trades.push({...t,importKey:key});ids.add(key);count++}save();drawTrades();showResults();document.getElementById('statementReport').textContent=count+' new closed trades saved. '+(pending.length-count)+' duplicates skipped. Backup your data under Journal or Settings.';document.getElementById('statementSaveBtn').style.display='none';
+ };
+ showResults();
+})();
