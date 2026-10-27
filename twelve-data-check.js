@@ -19,7 +19,7 @@ el('tdCheck').onclick=()=>{
   if(data.meta?.interval!=='1day')throw Error('Only daily candles supported here');
   const valid=[],seen=new Set(),dups=[];
   for(const x of data.values){
-   if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(x.datetime))continue;
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(x.datetime))continue;
    const d=new Date(x.datetime+'T00:00:00Z');
    if(!Number.isFinite(d.getTime())||d.toISOString().slice(0,10)!==x.datetime)continue;
    if(seen.has(x.datetime)){dups.push(x.datetime);continue}
@@ -39,17 +39,17 @@ el('tdCheck').onclick=()=>{
    return label+' open: '+(same?'UNVERIFIED (history does not reach period start)':'UNVERIFIED (needs complete period history)');
   });
   let ema='UNVERIFIED'; // 30 candles insufficient for dependable broker EMA18, and provider day boundaries differ.
-  let output=pair+' | Intended '+tracked[pair]+' | PROVIDER DAILY CANDLE CHECK\\n';
-  output+='Latest candle '+last.date+' close '+fmt(last.c)+' (NOT a live quote)\\n';
-  output+=levels.join('\\n')+'\\n';
-  output+='Weekly open: UNVERIFIED against FOREX.com\\nDaily open: '+fmt(last.o)+' (provider only)\\nD1 EMA18: '+ema+'\\n';
+  let output=pair+' | Intended '+tracked[pair]+' | PROVIDER DAILY CANDLE CHECK\n';
+  output+='Latest candle '+last.date+' close '+fmt(last.c)+' (NOT a live quote)\n';
+  output+=levels.join('\n')+'\n';
+  output+='Weekly open: UNVERIFIED against FOREX.com\nDaily open: '+fmt(last.o)+' (provider only)\nD1 EMA18: '+ema+'\n';
   if(monday){const mid=(monday.h+monday.l)/2;const pos=last.c>monday.h?'above range':last.c<monday.l?'below range':'inside range';
-   output+='Monday '+weekStart+' high '+fmt(monday.h)+' | midpoint '+fmt(mid)+' | low '+fmt(monday.l)+'\\n';
-   output+='Latest close is '+pos+'. H1/H4 closed-candle confirmation: UNVERIFIED.\\n';
-   output+='Watch: '+(tracked[pair]==='BUY'?'inside-range bullish rejection / low sweep-reclaim / high breakout-retest':'inside-range bearish rejection / high sweep-reclaim / low breakout-retest')+'; NO SIGNAL.\\n';
-  }else output+='Monday candle: unavailable.\\n';
-  output+='Validated candles: '+valid.length+'; duplicate dates: '+dups.length+(dups.length?' ('+[...new Set(dups)].join(', ')+')':'')+'\\n';
-  output+='WARNING: weekend-dated candles, duplicate dates, timezone and DST may differ from FOREX.com. No automatic alerts or orders.\\n';
+   output+='Monday '+weekStart+' high '+fmt(monday.h)+' | midpoint '+fmt(mid)+' | low '+fmt(monday.l)+'\n';
+   output+='Latest close is '+pos+'. H1/H4 closed-candle confirmation: UNVERIFIED.\n';
+   output+='Watch: '+(tracked[pair]==='BUY'?'inside-range bullish rejection / low sweep-reclaim / high breakout-retest':'inside-range bearish rejection / high sweep-reclaim / low breakout-retest')+'; NO SIGNAL.\n';
+  }else output+='Monday candle: unavailable.\n';
+  output+='Validated candles: '+valid.length+'; duplicate dates: '+dups.length+(dups.length?' ('+[...new Set(dups)].join(', ')+')':'')+'\n';
+  output+='WARNING: weekend-dated candles, duplicate dates, timezone and DST may differ from FOREX.com. No automatic alerts or orders.\n';
   output+='Your saved manual/broker levels were NOT changed.';
   el('tdResult').textContent=output;
  }catch(e){el('tdResult').textContent='Cannot use this response: '+e.message+'. Saved data unchanged.'}
