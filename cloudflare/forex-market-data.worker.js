@@ -1,7 +1,7 @@
 // Cloudflare Worker for Twelve Data. Deploy this code in Cloudflare, NOT as a GitHub Pages script.
 // Add TWELVE_DATA_API_KEY as a Worker Secret, never to the browser or this repository.
 // Set ALLOWED_ORIGIN to the exact GitHub Pages origin (no trailing slash).
-const PAIRS=new Set(['AUDCAD','EURCHF','AUDCHF','NZDUSD']);
+const PAIRS=new Set(['AUDCAD','EURCHF','AUDCHF','NZDUSD','AUDNZD','EURGBP','AUDJPY','EURCAD','EURJPY','GBPAUD','GBPCAD','GBPCHF','GBPJPY','NZDCAD','NZDCHF','NZDJPY','CADCHF','CADJPY','EURNZD','EURAUD','AUDUSD','EURUSD','GBPUSD','USDCHF','USDCAD','USDJPY','GBPNZD']);
 const JSON_HEADERS={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
 const respond=(obj,status=200,origin='')=>new Response(JSON.stringify(obj),{status,headers:{...JSON_HEADERS,...(origin?{'access-control-allow-origin':origin,'vary':'Origin'}:{})}});
 export default {
