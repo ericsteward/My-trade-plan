@@ -7,6 +7,25 @@ if(!target)return;
 const card=document.createElement('div');card.className='card';card.id='candleDiagnostics';
 card.innerHTML='<h2>Four-pair candle check (Twelve Data)</h2><p class="muted">Paste a Time Series JSON response from your own API Playground. Do not paste API keys. This preview does not change saved FOREX.com levels or create trade alerts. Twelve Data daily candles may not match FOREX.com broker days.</p><label>Pair<select id="tdPair"><option>AUDCAD</option><option>EURCHF</option><option>AUDCHF</option><option>NZDUSD</option></select></label><label>Time Series JSON<textarea id="tdJson" rows="5" placeholder="Paste the JSON response (meta, values, status)"></textarea></label><button id="tdCheck">Check candles</button><button id="tdClear" style="margin-left:8px;background:#456785">Clear pasted text</button><pre id="tdResult" style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite">Waiting for a candle response.</pre>';
 target.insertBefore(card,target.firstChild);
+const fetchButton=document.createElement('button');fetchButton.id='tdFetch';fetchButton.textContent='Fetch latest daily candles';fetchButton.style.marginRight='8px';
+card.insertBefore(fetchButton,document.getElementById('tdCheck'));
+const worker='https://forex-marketdata.spoonie9001.workers.dev';
+fetchButton.onclick=async()=>{
+ fetchButton.disabled=true;
+ const out=document.getElementById('tdResult');
+ out.textContent='Checking secure market-data connection…';
+ try{
+  const pair=document.getElementById('tdPair').value;
+  const response=await fetch(worker+'/candles?pair='+encodeURIComponent(pair),{cache:'no-store'});
+  const result=await response.json();
+  if(!response.ok)throw Error(result.error||'Data service returned '+response.status);
+  if(!result.values||!result.meta)throw Error('Missing candle data');
+  document.getElementById('tdJson').value=JSON.stringify({meta:result.meta,values:result.values,status:'ok'});
+  document.getElementById('tdCheck').click();
+  out.textContent='Fetched '+result.asOf+' UTC | '+result.source+'\\n'+out.textContent;
+ }catch(e){out.textContent='Automatic refresh unavailable: '+e.message+'. Your manual data remains unchanged.'}
+ finally{fetchButton.disabled=false}
+};
 const el=id=>document.getElementById(id);
 el('tdClear').onclick=()=>{el('tdJson').value='';el('tdResult').textContent='Cleared. Saved trading data unchanged.'};
 el('tdCheck').onclick=()=>{
