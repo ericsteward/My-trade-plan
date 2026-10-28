@@ -9,7 +9,7 @@ let cache={};try{cache=JSON.parse(localStorage.getItem(storageKey))||{}}catch{}
 try{const old=JSON.parse(localStorage.getItem('gregProviderDailyV1'))||{};for(const [p,entry] of Object.entries(old)){if(!cache[p]&&entry?.data)cache[p]=entry}}catch{}
 const root=document.getElementById('fx');if(!root)return;
 const panel=document.createElement('div');panel.className='card';panel.id='autoFxOverview';
-panel.innerHTML='<h2>27-pair daily market overview</h2><p class="muted">Twelve Data provider D1 candles; not live quotes or FOREX.com broker candles. Auto-refresh is paced for free API limits. Saved trading levels are never overwritten. No automatic trade signals.</p><p id="autoFxStatus" aria-live="polite">Preparing daily updates…</p><button id="autoFxRefresh" type="button">Refresh available data</button><div style="overflow-x:auto"><table style="width:100%;font-size:13px;border-spacing:0 9px;text-align:left"><thead><tr><th>Pair / bias</th><th>Last D1 close</th><th>Monday H / M / L</th><th>Y/Q/M/W/D + EMA</th></tr></thead><tbody id="autoFxRows"></tbody></table></div><p class="muted">Alignment uses provider daily closes and provider reference opens, not real-time price. H1/H4, broker spread and VantagePoint confirmation are unverified. A daily candle may still be forming. Missing yearly or other opens remain explicitly unavailable rather than inventing broker levels.</p>';
+panel.innerHTML='<h2>27-pair daily market overview</h2><p class="muted">Twelve Data provider D1 candles; not live quotes or FOREX.com broker candles. Auto-refresh is paced for free API limits. Saved trading levels are never overwritten. Calculated BUY/SELL BIAS is directional context only, not an entry signal; original four plan directions are preserved.</p><p id="autoFxStatus" aria-live="polite">Preparing daily updates…</p><button id="autoFxRefresh" type="button">Refresh available data</button><div style="overflow-x:auto"><table style="width:100%;font-size:13px;border-spacing:0 9px;text-align:left"><thead><tr><th>Pair / bias</th><th>Last D1 close</th><th>Monday H / M / L</th><th>Y/Q/M/W/D + EMA</th></tr></thead><tbody id="autoFxRows"></tbody></table></div><p class="muted">Alignment uses provider daily closes and provider reference opens, not real-time price. H1/H4, broker spread and VantagePoint confirmation are unverified. A daily candle may still be forming. Missing yearly or other opens remain explicitly unavailable rather than inventing broker levels.</p>';
 const board=root.querySelector('.card');root.insertBefore(panel,board);
 const status=document.getElementById('autoFxStatus'),rows=document.getElementById('autoFxRows'),btn=document.getElementById('autoFxRefresh');
 const num=x=>Number(x).toFixed(5);
@@ -44,11 +44,12 @@ function calculate(data){
  const alignment=known===6&&up===6?'6/6 ABOVE':known===6&&down===6?'6/6 BELOW':known===6?'MIXED ('+up+' above, '+down+' below)':known+'/6 verified ('+up+' above, '+down+' below; '+missing.join(',')+' unavailable)';
  return {date:last.date,close:last.c,mon:mon?{high:mon.h,mid:(mon.h+mon.l)/2,low:mon.l}:null,refs,alignment,count:v.length,dups:data.values.length-v.length};
 }
+function direction(d){if(!d||!Array.isArray(d.refs))return 'NO DATA';const refs=d.refs.filter(x=>x!==null&&Number.isFinite(x));if(refs.length<4)return 'UNVERIFIED';const above=refs.filter(x=>d.close>x).length,below=refs.filter(x=>d.close<x).length;return above===refs.length?'BUY BIAS':below===refs.length?'SELL BIAS':'MIXED';}
 function render(){
  rows.replaceChildren();
  for(const p of pairs){
   const tr=document.createElement('tr'),record=cache[p],d=record?.data;
-  const values=[p+' '+(biases[p]||'WATCH'),d?num(d.close)+' ('+d.date+')':'—',d?.mon?[d.mon.high,d.mon.mid,d.mon.low].map(num).join(' / '):'Unverified',d?alignment(d):'No data'];
+  const values=[p+' '+(biases[p]?'PLAN '+biases[p]+' | ':'')+(d?direction(d):'NO DATA'),d?num(d.close)+' ('+d.date+')':'—',d?.mon?[d.mon.high,d.mon.mid,d.mon.low].map(num).join(' / '):'Unverified',d?alignment(d):'No data'];
   values.forEach((v,i)=>{const td=document.createElement('td');td.textContent=v;td.style.padding='8px 4px';td.style.borderBottom='1px solid #42617b';if(i===0)td.style.fontWeight='bold';tr.append(td)});
   if(record?.error){tr.lastChild.textContent='Unavailable: '+record.error}
   rows.append(tr);
