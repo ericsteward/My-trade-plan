@@ -182,9 +182,10 @@ function renderPairBoard(){
   if(provider&&Array.isArray(provider.refs)){
    const known=provider.refs.filter(x=>x!==null&&Number.isFinite(x));
    const above=known.filter(x=>provider.close>x).length,below=known.filter(x=>provider.close<x).length;
-   const dir=known.length<4?'UNVERIFIED':above===known.length?'BUY':below===known.length?'SELL':'MIXED';
+   const dir=known.length<4?'UNVERIFIED':above>below?'BUY':below>above?'SELL':'WAIT — TIED';
    const align=known.length+'/6 ('+above+' above, '+below+' below)';
    const age=provider.date?'D1 '+provider.date:'D1 date unknown';
+   const confidence=known.length>=4&&above!==below&&above!==known.length&&below!==known.length?' — WAIT (mixed confirmation)':'';
    return '<tr><td><button onclick="openBoardPair(&quot;'+pair+'&quot;)">'+pair+'</button></td><td>'+dir+(bias==='BUY'||bias==='SELL'?' (plan '+bias+')':'')+'</td><td>'+align+'</td><td>PROVIDER '+age+' — confirmation needed</td></tr>';
   }
   const levels=['yearly','quarterly','monthly','weekly','daily','ema'];
