@@ -75,7 +75,7 @@ async function update(force=false){
     if(/429|limit|credit|quota/i.test(String(e.message||e))){status.textContent='Provider quota reached. Existing data preserved; retry later.';break}
    }
    try{localStorage.setItem(storageKey,JSON.stringify(cache))}catch{}
-   render();
+   render();window.dispatchEvent(new Event('gregProviderUpdated'));
    if(i<pairs.length-1)await wait(9000);
   }
   status.textContent+=' Complete: '+fetched+' updated, '+failed+' unavailable. Source: Twelve Data daily candles.';
