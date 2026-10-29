@@ -176,6 +176,17 @@ function renderPairBoard(){
  const el=document.getElementById('pairBoard');if(!el)return;
  const rows=Object.keys(pairs).map(pair=>{
   const p=db.pairs[pair]||{},bias=pairs[pair],price=Number(p.price);
+  // Read-only provider snapshot. Never copy provider values into saved broker inputs.
+  let provider=null;
+  try{provider=JSON.parse(localStorage.getItem('gregProviderDailyV2')||'{}')[pair]?.data||null}catch{}
+  if(provider&&Array.isArray(provider.refs)){
+   const known=provider.refs.filter(x=>x!==null&&Number.isFinite(x));
+   const above=known.filter(x=>provider.close>x).length,below=known.filter(x=>provider.close<x).length;
+   const dir=known.length<4?'UNVERIFIED':above===known.length?'BUY':below===known.length?'SELL':'MIXED';
+   const align=known.length+'/6 ('+above+' above, '+below+' below)';
+   const age=provider.date?'D1 '+provider.date:'D1 date unknown';
+   return '<tr><td><button onclick="openBoardPair(\\''+pair+'\\')">'+pair+'</button></td><td>'+dir+(bias==='BUY'||bias==='SELL'?' (plan '+bias+')':'')+'</td><td>'+align+'</td><td>PROVIDER '+age+' — confirmation needed</td></tr>';
+  }
   const levels=['yearly','quarterly','monthly','weekly','daily','ema'];
   const complete=p.price!==''&&p.price!=null&&levels.every(k=>p[k]!==''&&p[k]!=null&&Number.isFinite(Number(p[k])));
   const up=complete&&levels.every(k=>price>Number(p[k]));
@@ -193,6 +204,7 @@ function renderPairBoard(){
 function openBoardPair(symbol){$('pair').value=symbol;loadPair();document.getElementById('alignmentSummary').scrollIntoView({behavior:'smooth',block:'center'})}
 const oldBoardSave=savePair;savePair=function(){oldBoardSave();renderPairBoard()};
 renderPairBoard();
+window.addEventListener('gregProviderUpdated',renderPairBoard);
 
 
 /* Version 10: local-only FOREX.com MT4 statement import; no broker credentials. */
