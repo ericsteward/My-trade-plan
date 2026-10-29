@@ -185,7 +185,7 @@ function renderPairBoard(){
    const dir=known.length<4?'UNVERIFIED':above===known.length?'BUY':below===known.length?'SELL':'MIXED';
    const align=known.length+'/6 ('+above+' above, '+below+' below)';
    const age=provider.date?'D1 '+provider.date:'D1 date unknown';
-   return '<tr><td><button onclick="openBoardPair(\\''+pair+'\\')">'+pair+'</button></td><td>'+dir+(bias==='BUY'||bias==='SELL'?' (plan '+bias+')':'')+'</td><td>'+align+'</td><td>PROVIDER '+age+' — confirmation needed</td></tr>';
+   return '<tr><td><button onclick="openBoardPair(&quot;'+pair+'&quot;)">'+pair+'</button></td><td>'+dir+(bias==='BUY'||bias==='SELL'?' (plan '+bias+')':'')+'</td><td>'+align+'</td><td>PROVIDER '+age+' — confirmation needed</td></tr>';
   }
   const levels=['yearly','quarterly','monthly','weekly','daily','ema'];
   const complete=p.price!==''&&p.price!=null&&levels.every(k=>p[k]!==''&&p[k]!=null&&Number.isFinite(Number(p[k])));
