@@ -172,13 +172,38 @@ const priorLoadPair=loadPair;loadPair=function(){priorLoadPair();showSimpleAlign
 const priorSavePair=savePair;savePair=function(){priorSavePair();showSimpleAlignment()};
 showSimpleAlignment();
 
+// Trading Mood describes evidenced market behavior, never the trader's feelings.
+// A Buy/Sell reference vote alone cannot confirm momentum, structure or extension.
+function tradingMoodEvidence(data,planDirection,refreshFailed=false){
+ const labels=['Y','Q','M','W','D','EMA'];
+ const refs=Array.isArray(data?.refs)?data.refs:[];
+ const valid=x=>typeof x==='number'&&Number.isFinite(x)&&x>0;
+ const known=labels.filter((_,i)=>valid(refs[i]));
+ const hasPrice=valid(data?.close);
+ const above=hasPrice?refs.filter(x=>valid(x)&&data.close>x).length:0;
+ const below=hasPrice?refs.filter(x=>valid(x)&&data.close<x).length:0;
+ const missing=labels.filter((_,i)=>!valid(refs[i]));
+ const reasons=[];
+ if(refreshFailed)reasons.push('Refresh failed; saved data may be stale.');
+ if(!hasPrice)reasons.push('Current D1 price evidence unavailable.');
+ if(missing.length)reasons.push(known.length+'/6 reference levels available; '+missing.join('/')+' missing.');
+ if(hasPrice&&above&&below)reasons.push('Reference votes conflict: '+above+' above, '+below+' below.');
+ const direction=hasPrice&&known.length>=4?(above>below?'BUY':below>above?'SELL':null):null;
+ const conflict=(planDirection==='BUY'||planDirection==='SELL')&&direction&&planDirection!==direction;
+ if(conflict)reasons.push('Plan '+planDirection+' conflicts with '+direction+' bias.');
+ reasons.push('D1 structure/momentum, range expansion and targets/PTR unverified.');
+ return {label:'MIXED/UNCONFIRMED',reason:reasons.join(' '),action:conflict?'Stand aside; resolve the plan/bias conflict.':'Stand aside from new entries until confirmed.'};
+}
+function tradingMoodCells(mood){
+ return '<td style="font-weight:bold;color:#f7d88a">'+mood.label+'</td><td style="min-width:190px">'+mood.reason+'<br><strong>Plan action:</strong> '+mood.action+'</td>';
+}
 function renderPairBoard(){
  const el=document.getElementById('pairBoard');if(!el)return;
  const rows=Object.keys(pairs).map(pair=>{
   const p=db.pairs[pair]||{},bias=pairs[pair],price=Number(p.price);
   // Read-only provider snapshot. Never copy provider values into saved broker inputs.
-  let provider=null;
-  try{provider=JSON.parse(localStorage.getItem('gregProviderDailyV2')||'{}')[pair]?.data||null}catch{}
+  let provider=null,providerRecord=null;
+  try{providerRecord=JSON.parse(localStorage.getItem('gregProviderDailyV2')||'{}')[pair]||null;provider=providerRecord?.data||null}catch{}
   if(provider&&Array.isArray(provider.refs)){
    const known=provider.refs.filter(x=>x!==null&&Number.isFinite(x));
    const above=known.filter(x=>provider.close>x).length,below=known.filter(x=>provider.close<x).length;
@@ -186,7 +211,8 @@ function renderPairBoard(){
    const align=known.length+'/6 ('+above+' above, '+below+' below)';
    const age=provider.date?'D1 '+provider.date:'D1 date unknown';
    const confidence=known.length>=4&&above!==below&&above!==known.length&&below!==known.length?' — WAIT (mixed confirmation)':'';
-   return '<tr><td><button onclick="openBoardPair(&quot;'+pair+'&quot;)">'+pair+'</button></td><td>'+dir+(bias==='BUY'||bias==='SELL'?' (plan '+bias+')':'')+'</td><td>'+align+'</td><td>PROVIDER '+age+' — confirmation needed</td></tr>';
+   const mood=tradingMoodEvidence(provider,bias,Boolean(providerRecord?.error));
+   return '<tr><td><button onclick="openBoardPair(&quot;'+pair+'&quot;)" title="'+pair+' — '+mood.label+'">'+pair+'</button></td><td>'+dir+(bias==='BUY'||bias==='SELL'?' (plan '+bias+')':'')+'</td>'+tradingMoodCells(mood)+'<td>'+align+'</td><td>PROVIDER '+age+' — confirmation needed</td></tr>';
   }
   const levels=['yearly','quarterly','monthly','weekly','daily','ema'];
   const complete=p.price!==''&&p.price!=null&&levels.every(k=>p[k]!==''&&p[k]!=null&&Number.isFinite(Number(p[k])));
@@ -197,9 +223,10 @@ function renderPairBoard(){
   const confirmed=p.confirm==='yes'&&['inside','sweep','breakout'].includes(p.pattern);
   const status=aligned&&monday&&confirmed?'REVIEW':complete?'WAIT':'NO DATA';
   const alignment=!complete?'—':up?'6 above':down?'6 below':'Mixed';
-  return '<tr><td><button onclick="openBoardPair(\''+pair+'\')">'+pair+'</button></td><td>'+bias+'</td><td>'+alignment+'</td><td>'+status+'</td></tr>';
+  const mood=tradingMoodEvidence({close:p.price!==''&&p.price!=null?price:null,refs:levels.map(k=>p[k]!==''&&p[k]!=null?Number(p[k]):null)},bias,Boolean(providerRecord?.error));
+  return '<tr><td><button onclick="openBoardPair(\''+pair+'\')" title="'+pair+' — '+mood.label+'">'+pair+'</button></td><td>'+bias+'</td>'+tradingMoodCells(mood)+'<td>'+alignment+'</td><td>'+status+'</td></tr>';
  });
- el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr><th>Pair</th><th>Bias</th><th>Y/Q/M/W/D/EMA</th><th>Status</th></tr></thead><tbody>'+rows.join('')+'</tbody></table><p class="muted">REVIEW means saved inputs pass basic checks, not a verified trade signal. Reference estimates are not FOREX.com candle data.</p>';
+ el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr><th>Pair</th><th>Bias</th><th>Trading Mood</th><th>Mood evidence / Plan action</th><th>Y/Q/M/W/D/EMA</th><th>Status</th></tr></thead><tbody>'+rows.join('')+'</tbody></table><p class="muted">Trading Mood describes market behavior, not your feelings. MIXED/UNCONFIRMED stays in place until D1 structure, weekly/Monday context, momentum, range and target evidence are verified. Buy/Sell bias and existing checks are unchanged. REVIEW is not a verified trade signal; mood never overrides the plan or entry gates.</p>';
  el.querySelectorAll('td,th').forEach(cell=>{cell.style.padding='9px 4px';cell.style.borderBottom='1px solid #48617a';cell.style.textAlign='left'});
 }
 function openBoardPair(symbol){$('pair').value=symbol;loadPair();document.getElementById('alignmentSummary').scrollIntoView({behavior:'smooth',block:'center'})}
@@ -238,3 +265,4 @@ window.addEventListener('gregProviderUpdated',renderPairBoard);
  };
  showResults();
 })();
+
