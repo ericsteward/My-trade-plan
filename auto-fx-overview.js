@@ -44,7 +44,7 @@ function calculate(data){
  const alignment=known===6&&up===6?'6/6 ABOVE':known===6&&down===6?'6/6 BELOW':known===6?'MIXED ('+up+' above, '+down+' below)':known+'/6 verified ('+up+' above, '+down+' below; '+missing.join(',')+' unavailable)';
  return {date:last.date,close:last.c,mon:mon?{high:mon.h,mid:(mon.h+mon.l)/2,low:mon.l}:null,refs,alignment,count:v.length,dups:data.values.length-v.length};
 }
-function direction(d){if(!d||!Array.isArray(d.refs))return 'NO DATA';const refs=d.refs.filter(x=>x!==null&&Number.isFinite(x));if(refs.length<4)return 'UNVERIFIED';const above=refs.filter(x=>d.close>x).length,below=refs.filter(x=>d.close<x).length;return above===refs.length?'BUY BIAS':below===refs.length?'SELL BIAS':'MIXED';}
+function direction(d){if(!d||!Array.isArray(d.refs))return 'NO DATA';const refs=d.refs.filter(x=>x!==null&&Number.isFinite(x));if(refs.length<4)return 'UNVERIFIED';const above=refs.filter(x=>d.close>x).length,below=refs.filter(x=>d.close<x).length;return above>below?'BUY BIAS'+(below?' — WAIT':''):below>above?'SELL BIAS'+(above?' — WAIT':''):'WAIT — TIED';}
 function render(){
  rows.replaceChildren();
  for(const p of pairs){
