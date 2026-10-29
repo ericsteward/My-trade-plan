@@ -81,5 +81,5 @@ async function update(force=false){
   status.textContent+=' Complete: '+fetched+' updated, '+failed+' unavailable. Source: Twelve Data daily candles.';
  }finally{running=false;btn.disabled=false;render()}
 }
-btn.onclick=()=>update(true);render();update(false);
+btn.onclick=()=>update(true);render();window.dispatchEvent(new Event('gregProviderUpdated'));update(false);
 })();
